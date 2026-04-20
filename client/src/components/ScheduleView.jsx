@@ -373,6 +373,57 @@ const ScheduleView = ({ agentResult, onConfirm, onBack, alreadyConfirmed = false
             </div>
           )}
 
+          {/* Test Notification Button */}
+          {notifPerm === 'granted' && (
+            <div style={{
+              padding: '16px 20px', borderRadius: 14,
+              background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)',
+              display: 'flex', alignItems: 'center', gap: '14px',
+            }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: '#fbbf24', marginBottom: '3px' }}>🧪 Test your notifications</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-3)' }}>Fires a real medication reminder in 10 seconds — try clicking "✅ Taken" or "❌ Missed" on it</div>
+              </div>
+              <button
+                onClick={async () => {
+                  const sw = (await navigator.serviceWorker.ready).active;
+                  if (!sw) return;
+                  const now = new Date();
+                  now.setSeconds(now.getSeconds() + 10);
+                  const testDose = {
+                    dose_id: 'test_dose_' + Date.now(),
+                    drug_name: schedule[0]?.drug_name || 'Test Medicine',
+                    dosage: schedule[0]?.dosage || '1 tablet',
+                    constraint: schedule[0]?.constraint || 'after food',
+                    slot: 'breakfast',
+                    scheduled_time: `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`,
+                    date: now.toISOString().split('T')[0],
+                    day: 1,
+                    status: 'pending',
+                  };
+                  sw.postMessage({
+                    type: 'SCHEDULE_NOTIFICATIONS',
+                    payload: { doses: [testDose], sessionId: session_id }
+                  });
+                  alert('⏱️ Test notification fires in 10 seconds! Keep this tab open.');
+                }}
+                style={{
+                  background: 'rgba(245,158,11,0.12)',
+                  border: '1px solid rgba(245,158,11,0.3)',
+                  color: '#fbbf24', padding: '10px 18px',
+                  borderRadius: '10px', fontSize: '13px',
+                  fontWeight: 700, cursor: 'pointer', flexShrink: 0,
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(245,158,11,0.2)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'rgba(245,158,11,0.12)'}
+              >
+                🔔 Fire in 10s
+              </button>
+            </div>
+          )}
+
+
           {/* Live dose event log (populated when user taps notification) */}
           {doseEvents.length > 0 && (
             <div style={{
