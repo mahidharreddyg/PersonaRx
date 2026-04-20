@@ -10,9 +10,16 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import analyzeRouter from './routes/analyze.js';
-
+import scheduleRouter from './routes/schedule.js';
+import logEventRouter from './routes/log-event.js';
+import authRouter from './routes/auth.js';
+import prescriptionsRouter from './routes/prescriptions.js';
+import connectDB from './config/db.js';
 // Load environment variables from .env file
 dotenv.config({ path: '../.env' });
+
+// Connect to Database
+connectDB();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -22,8 +29,11 @@ app.use(cors());
 app.use(express.json());
 
 // Routes
+app.use('/api/auth', authRouter);
 app.use('/api/analyze', analyzeRouter);
-
+app.use('/api/schedule', scheduleRouter);
+app.use('/api/log-event', logEventRouter);
+app.use('/api/prescriptions', prescriptionsRouter);
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({
@@ -46,5 +56,6 @@ app.use((err, req, res, next) => {
 app.listen(PORT, () => {
   console.log(`\n🏥 AI Prescription Analyzer Backend`);
   console.log(`   Server running on http://localhost:${PORT}`);
-  console.log(`   Colab API: ${process.env.COLAB_API_URL || '⚠️  NOT CONFIGURED'}\n`);
+  console.log(`   Colab API: ${process.env.COLAB_API_URL || '⚠️  NOT CONFIGURED'}`);
+  console.log(`   Agent API: ${process.env.AGENT_API_URL || '⚠️  NOT CONFIGURED'}\n`);
 });

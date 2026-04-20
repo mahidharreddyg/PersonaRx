@@ -10,10 +10,12 @@ import { Router } from 'express';
 import axios from 'axios';
 import FormData from 'form-data';
 import upload from '../middleware/upload.js';
+import auth from '../middleware/auth.js';
+import Prescription from '../models/Prescription.js';
 
 const router = Router();
 
-router.post('/', upload.single('image'), async (req, res) => {
+router.post('/', [auth, upload.single('image')], async (req, res) => {
   try {
     // Validate that a file was uploaded
     if (!req.file) {
@@ -62,8 +64,23 @@ router.post('/', upload.single('image'), async (req, res) => {
       });
     }
 
-    // Return the Colab response to the frontend
-    return res.json(response.data);
+    // Save to MongoDB
+    const prescription = new Prescription({
+      user: req.user.id,
+      patient: response.data.patient,
+      doctor: response.data.doctor,
+      medications: response.data.medications,
+      raw_response: response.data
+    });
+    
+    const savedPrescription = await prescription.save();
+    console.log('💾 Prescription saved to MongoDB:', savedPrescription._id);
+
+    // Return the response along with the database ID
+    return res.json({
+      ...response.data,
+      _id: savedPrescription._id
+    });
 
   } catch (error) {
     console.error('❌ Error in /api/analyze:', error.message);

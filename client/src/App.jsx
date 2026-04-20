@@ -1,4 +1,9 @@
 import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
+import ProtectedRoute from './components/ProtectedRoute';
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
 import Header from './components/Header';
 import UploadArea from './components/UploadArea';
 import ImagePreview from './components/ImagePreview';
@@ -8,24 +13,37 @@ import ResultsPanel from './components/ResultsPanel';
 import ErrorMessage from './components/ErrorMessage';
 import JsonViewer from './components/JsonViewer';
 import DownloadButton from './components/DownloadButton';
+import ScheduleView from './components/ScheduleView';
 import useAnalyze from './hooks/useAnalyze';
 import './index.css';
 
-function App() {
+const MainApp = () => {
   const {
-    file, loading, error, result,
-    selectFile, removeFile, analyze, reset,
-    updateField, updateMedication,
+    file, loading, sessionLoading, error, result,
+    agentScheduling, agentResult, isRestoredSession,
+    startDate, setStartDate,
+    selectFile, removeFile, analyze, reset, scheduleAgent,
+    updateField, updateMedication, saveConfirmedSchedule,
   } = useAnalyze();
 
   return (
     <div className="app-bg">
-      {loading && <LoadingOverlay />}
+      {(loading || agentScheduling) && <LoadingOverlay />}
       <Header />
+
+      {/* Session loading spinner — shown briefly while checking Atlas for previous session */}
+      {sessionLoading && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0a0a0f', zIndex: 100 }}>
+          <div style={{ textAlign: 'center', color: 'var(--text-2)' }}>
+            <div style={{ fontSize: '32px', marginBottom: '16px' }}>💊</div>
+            <div style={{ fontSize: '15px' }}>Loading your schedule...</div>
+          </div>
+        </div>
+      )}
 
       <main className="main-content">
         {/* Hero */}
-        <div className="hero" style={{ animation:'fadeInUp 0.5s ease' }}>
+        <div className="hero" style={{ animation: 'fadeInUp 0.5s ease' }}>
           <h2 className="hero-title">
             Extract Medical Data from{' '}
             <span className="accent">Prescriptions</span>
@@ -36,13 +54,13 @@ function App() {
           </p>
         </div>
 
-        {/* Upload flow */}
-        {!result && (
-          <div style={{ animation:'fadeInUp 0.5s ease 0.1s both' }}>
+        {/* Upload flow — only shown when no confirmed schedule exists */}
+        {!result && !sessionLoading && (
+          <div style={{ animation: 'fadeInUp 0.5s ease 0.1s both' }}>
             <UploadArea onFileSelect={selectFile} disabled={loading} />
             <ImagePreview file={file} onRemove={removeFile} disabled={loading} />
             {file && (
-              <div style={{ animation:'fadeIn 0.3s ease' }}>
+              <div style={{ animation: 'fadeIn 0.3s ease' }}>
                 <AnalyzeButton onClick={analyze} disabled={!file} loading={loading} />
               </div>
             )}
@@ -51,14 +69,14 @@ function App() {
 
         {/* Error */}
         {error && (
-          <div style={{ maxWidth:680, margin:'32px auto 0' }}>
+          <div style={{ maxWidth: 680, margin: '32px auto 0' }}>
             <ErrorMessage message={error} onRetry={analyze} />
           </div>
         )}
 
         {/* Results */}
         {result && (
-          <div style={{ animation:'fadeIn 0.4s ease' }}>
+          <div style={{ animation: 'fadeIn 0.4s ease' }}>
             <ResultsPanel
               data={result}
               onUpdateField={updateField}
@@ -66,17 +84,75 @@ function App() {
             />
             <div className="actions-bar">
               <JsonViewer data={result} />
+
+              {/* Start Date Picker — only show before schedule is generated */}
+              {!agentResult && (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '14px',
+                  padding: '16px 20px', borderRadius: '14px', marginBottom: '12px',
+                  background: 'rgba(157,78,221,0.06)',
+                  border: '1px solid rgba(157,78,221,0.2)',
+                }}>
+                  <div style={{ fontSize: '20px' }}>📅</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: '#c084fc', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Treatment Start Date</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-3)' }}>Day 1 of the medication schedule</div>
+                  </div>
+                  <input
+                    type="date"
+                    value={startDate}
+                    min={new Date().toISOString().split('T')[0]}
+                    onChange={e => setStartDate(e.target.value)}
+                    style={{
+                      background: 'rgba(255,255,255,0.05)',
+                      border: '1px solid rgba(157,78,221,0.35)',
+                      borderRadius: '10px',
+                      color: 'var(--text-1)',
+                      padding: '9px 14px',
+                      fontSize: '14px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      outline: 'none',
+                      colorScheme: 'dark',
+                    }}
+                  />
+                </div>
+              )}
+
               <div className="btn-row">
+                <button
+                  className="btn-primary"
+                  onClick={scheduleAgent}
+                  disabled={agentScheduling}
+                  style={{ background: 'linear-gradient(to right, #9d4edd, #ff4d6d)', border: 'none', color: '#fff', padding: '12px 24px', borderRadius: '12px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
+                >
+                  {agentScheduling ? 'Scheduling...' : 'Confirm & Schedule Agent'}
+                </button>
                 <DownloadButton data={result} />
                 <button className="btn-new" onClick={reset}>
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                    <polyline points="23 4 23 10 17 10"/>
-                    <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/>
+                    <polyline points="23 4 23 10 17 10" />
+                    <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
                   </svg>
                   New Analysis
                 </button>
               </div>
             </div>
+
+            {/* Agent Schedule View */}
+            {agentResult && (
+              <ScheduleView
+                agentResult={agentResult}
+                alreadyConfirmed={isRestoredSession}
+                onConfirm={() => {
+                  const prescriptionId = result?._id;
+                  if (prescriptionId) {
+                    saveConfirmedSchedule(prescriptionId, agentResult);
+                  }
+                }}
+                onBack={() => { }}
+              />
+            )}
           </div>
         )}
       </main>
@@ -86,6 +162,27 @@ function App() {
         <div className="footer-note">For educational purposes only. Not a substitute for medical advice.</div>
       </footer>
     </div>
+  );
+};
+
+function App() {
+  return (
+    <Router>
+      <AuthProvider>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <MainApp />
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
+      </AuthProvider>
+    </Router>
   );
 }
 
