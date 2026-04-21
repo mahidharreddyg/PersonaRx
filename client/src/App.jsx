@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -14,10 +14,13 @@ import ErrorMessage from './components/ErrorMessage';
 import JsonViewer from './components/JsonViewer';
 import DownloadButton from './components/DownloadButton';
 import ScheduleView from './components/ScheduleView';
+import DemoDashboard from './components/DemoDashboard';
 import useAnalyze from './hooks/useAnalyze';
 import './index.css';
 
 const MainApp = () => {
+  const [isDemoMode, setIsDemoMode] = useState(false);
+  
   const {
     file, loading, sessionLoading, error, result,
     agentScheduling, agentResult, isRestoredSession,
@@ -31,10 +34,10 @@ const MainApp = () => {
   return (
     <div className="app-bg">
       {(loading || agentScheduling) && <LoadingOverlay />}
-      <Header />
+      <Header isDemoMode={isDemoMode} onToggleDemoMode={() => setIsDemoMode(!isDemoMode)} />
 
       {/* Session loading spinner — shown briefly while checking Atlas for previous session */}
-      {sessionLoading && (
+      {sessionLoading && !isDemoMode && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0a0a0f', zIndex: 100 }}>
           <div style={{ textAlign: 'center', color: 'var(--text-2)' }}>
             <div style={{ fontSize: '32px', marginBottom: '16px' }}>💊</div>
@@ -43,21 +46,24 @@ const MainApp = () => {
         </div>
       )}
 
-      <main className="main-content">
-        {/* Hero */}
-        <div className="hero" style={{ animation: 'fadeInUp 0.5s ease' }}>
-          <h2 className="hero-title">
-            Extract Medical Data from{' '}
-            <span className="accent">Prescriptions</span>
-          </h2>
-          <p className="hero-desc">
-            Upload a prescription image and our multi-agent AI pipeline will extract
-            patient details, doctor information, and medications in seconds.
-          </p>
-        </div>
+      {isDemoMode ? (
+        <DemoDashboard onClose={() => setIsDemoMode(false)} />
+      ) : (
+        <main className="main-content">
+          {/* Hero */}
+          <div className="hero" style={{ animation: 'fadeInUp 0.5s ease' }}>
+            <h2 className="hero-title">
+              Extract Medical Data from{' '}
+              <span className="accent">Prescriptions</span>
+            </h2>
+            <p className="hero-desc">
+              Upload a prescription image and our multi-agent AI pipeline will extract
+              patient details, doctor information, and medications in seconds.
+            </p>
+          </div>
 
-        {/* Upload flow — only shown when no confirmed schedule exists */}
-        {!result && !sessionLoading && (
+          {/* Upload flow — only shown when no confirmed schedule exists */}
+          {!result && !sessionLoading && (
           <div style={{ animation: 'fadeInUp 0.5s ease 0.1s both' }}>
             <UploadArea onFileSelect={selectFile} disabled={loading} />
             <ImagePreview file={file} onRemove={removeFile} disabled={loading} />
@@ -171,6 +177,7 @@ const MainApp = () => {
           </div>
         )}
       </main>
+      )}
 
       <footer className="site-footer">
         <div className="footer-text">© {new Date().getFullYear()} Prescript AI — Intelligent Prescription Management System</div>

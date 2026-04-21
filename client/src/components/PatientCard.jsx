@@ -1,5 +1,6 @@
 import React from 'react';
 import EditableField from './EditableField';
+import { useAuth } from '../context/AuthContext';
 
 const FIELDS = [
   { key: 'name',        label: 'Full Name',   icon: '👤' },
@@ -15,6 +16,7 @@ const FIELDS = [
 ];
 
 const PatientCard = ({ patient, onUpdate }) => {
+  const { user } = useAuth();
   if (!patient) return null;
 
   // Handle plain string
@@ -37,13 +39,25 @@ const PatientCard = ({ patient, onUpdate }) => {
   // Known fields + any extra keys from Colab
   const allKeys = [...new Set([...FIELDS.map(f => f.key), ...Object.keys(patient)])];
   const rows = allKeys
-    .filter(k => patient[k] && patient[k] !== 'N/A' && patient[k] !== 'null')
+    .filter(k => {
+      // Always show 'name' as a fallback
+      if (k === 'name') return true;
+      return patient[k] && patient[k] !== 'N/A' && patient[k] !== 'null';
+    })
     .map(k => {
       const cfg = FIELDS.find(f => f.key === k);
+      let value = patient[k];
+      
+      // FALLBACK: Use email ID if name is missing or clearly wrong (like "00 PM")
+      if (k === 'name' && (!value || value === 'null' || value === 'N/A' || /\d\d\s?[AP]M/.test(value))) {
+        value = user?.email || 'N/A';
+      }
+
       return {
         key: k,
         label: cfg?.label || k.replace(/_/g,' ').replace(/\b\w/g, c=>c.toUpperCase()),
         icon:  cfg?.icon  || '📋',
+        value: String(value)
       };
     });
 
@@ -63,7 +77,7 @@ const PatientCard = ({ patient, onUpdate }) => {
           <EditableField
             key={f.key}
             label={f.label}
-            value={String(patient[f.key])}
+            value={f.value}
             icon={f.icon}
             onChange={v => onUpdate?.(f.key, v)}
           />
