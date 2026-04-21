@@ -67,4 +67,34 @@ router.patch('/:id/schedule', auth, async (req, res) => {
   }
 });
 
+// @route   DELETE /api/prescriptions/:id/schedule
+// @desc    Remove the saved schedule from a prescription (reset / delete)
+// @access  Private
+router.delete('/:id/schedule', auth, async (req, res) => {
+  try {
+    const prescription = await Prescription.findOneAndUpdate(
+      { _id: req.params.id, user: req.user.id },
+      {
+        $unset: {
+          saved_schedule: '',
+          session_id: '',
+          meal_times: '',
+          schedule_confirmed_at: '',
+        }
+      },
+      { new: true }
+    );
+
+    if (!prescription) {
+      return res.status(404).json({ error: 'Prescription not found' });
+    }
+
+    console.log(`🗑️  Schedule deleted from prescription ${req.params.id}`);
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('❌ Error deleting schedule:', err.message);
+    return res.status(500).json({ error: 'Failed to delete schedule' });
+  }
+});
+
 export default router;

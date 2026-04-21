@@ -1,10 +1,10 @@
 /**
- * useAnalyze Hook — v3
+ * useAnalyze Hook — v4
  * Auto-loads previous confirmed schedule on login.
  * Notifications are automatically re-scheduled on mount.
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
   registerServiceWorker,
@@ -36,9 +36,16 @@ const useAnalyze = () => {
   const [agentResult, setAgentResult] = useState(null);
   const [isRestoredSession, setIsRestoredSession] = useState(false);
 
+  // Track the prescription id for save/delete operations
+  const [currentPrescriptionId, setCurrentPrescriptionId] = useState(null);
+
   // Start date for shifting the schedule — defaults to today
   const todayStr = new Date().toISOString().split('T')[0];
   const [startDate, setStartDate] = useState(todayStr);
+
+  // Keep startDate in a ref so callbacks always see the latest value
+  const startDateRef = useRef(startDate);
+  useEffect(() => { startDateRef.current = startDate; }, [startDate]);
 
   // On mount: auto-load the last confirmed schedule + re-fire notifications
   useEffect(() => {
@@ -59,6 +66,7 @@ const useAnalyze = () => {
             const prescriptionData = data.raw_response || { medications: data.medications, _id: data._id };
             setResult(prescriptionData);
             setEditResult(JSON.parse(JSON.stringify(prescriptionData)));
+            setCurrentPrescriptionId(data._id);
             setAgentResult({
               session_id: data.session_id,
               schedule: data.saved_schedule,
@@ -131,6 +139,8 @@ const useAnalyze = () => {
 
       setResult(data);
       setEditResult(JSON.parse(JSON.stringify(data)));
+      // Store prescription id if included
+      if (data._id) setCurrentPrescriptionId(data._id);
     } catch (err) {
       console.error('Analysis error:', err);
       if (err.name === 'TypeError' && err.message === 'Failed to fetch') {
@@ -180,10 +190,10 @@ const useAnalyze = () => {
 
       if (!response.ok) throw new Error(data.error || `Server error (${response.status})`);
 
-      // Shift all schedule dates to start from the user-chosen start date
+      // Always use the CURRENT startDate from ref (fixes stale closure bug)
       const shifted = {
         ...data,
-        schedule: shiftScheduleDates(data.schedule, startDate),
+        schedule: shiftScheduleDates(data.schedule, startDateRef.current),
       };
       setAgentResult(shifted);
     } catch (err) {
@@ -194,12 +204,34 @@ const useAnalyze = () => {
     }
   }, [editResult, token]);
 
+  // Re-shift the currently displayed schedule when the user changes the start date.
+  // Uses DATE-based diff (not the day field) so it works even if day fields are missing/wrong.
+  const reshiftSchedule = useCallback((newStartDate) => {
+    setStartDate(newStartDate);
+    setAgentResult(prev => {
+      if (!prev?.schedule?.length) return prev;
+      // Find the current "Day 1" date from the existing schedule
+      const currentDay1 = [...prev.schedule].map(d => d.date).sort()[0];
+      if (!currentDay1) return prev;
+      const baseMsec = new Date(currentDay1 + 'T00:00:00').getTime();
+      const newMsec  = new Date(newStartDate  + 'T00:00:00').getTime();
+      const diffDays = Math.round((newMsec - baseMsec) / 86_400_000);
+      const shifted = prev.schedule.map(dose => {
+        const d = new Date(dose.date + 'T00:00:00');
+        d.setDate(d.getDate() + diffDays);
+        return { ...dose, date: d.toISOString().split('T')[0] };
+      });
+      return { ...prev, schedule: shifted };
+    });
+  }, []);
+
+
   // Called when user clicks "Confirm Schedule" in ScheduleView
   // Saves the schedule to MongoDB so it auto-loads next login
   const saveConfirmedSchedule = useCallback(async (prescriptionId, agentData) => {
     if (!prescriptionId || !agentData) return;
     try {
-      await fetch(`/api/prescriptions/${prescriptionId}/schedule`, {
+      const res = await fetch(`/api/prescriptions/${prescriptionId}/schedule`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -211,11 +243,58 @@ const useAnalyze = () => {
           meal_times: agentData.meal_times,
         })
       });
-      console.log('💾 Schedule saved — will auto-load on next login');
+      if (res.ok) {
+        setCurrentPrescriptionId(prescriptionId);
+        console.log('💾 Schedule saved — will auto-load on next login');
+      }
     } catch (err) {
       console.warn('Could not save schedule:', err.message);
     }
   }, [token]);
+
+  // Merge a new prescription's schedule into the existing one (overlapping dates)
+  const mergeSchedule = useCallback(async (prescriptionId, newAgentData) => {
+    if (!newAgentData?.schedule) return;
+    try {
+      // Merge locally first
+      setAgentResult(prev => {
+        if (!prev?.schedule) return newAgentData;
+        const existingIds = new Set(prev.schedule.map(d => d.dose_id));
+        const merged = [
+          ...prev.schedule,
+          ...newAgentData.schedule.filter(d => !existingIds.has(d.dose_id)),
+        ];
+        return { ...prev, schedule: merged };
+      });
+
+      // Then persist the merged schedule
+      if (prescriptionId) {
+        await saveConfirmedSchedule(prescriptionId, newAgentData);
+      }
+    } catch (err) {
+      console.warn('Could not merge schedule:', err.message);
+    }
+  }, [saveConfirmedSchedule]);
+
+  // Delete the confirmed schedule (clear from DB + reset UI)
+  const deleteSchedule = useCallback(async () => {
+    const pid = currentPrescriptionId;
+    if (!pid) return;
+    try {
+      await fetch(`/api/prescriptions/${pid}/schedule`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      console.log('🗑️ Schedule deleted');
+    } catch (err) {
+      console.warn('Could not delete schedule:', err.message);
+    } finally {
+      // Always reset local state
+      setAgentResult(null);
+      setIsRestoredSession(false);
+      setCurrentPrescriptionId(null);
+    }
+  }, [currentPrescriptionId, token]);
 
   const reset = useCallback(() => {
     setFile(null);
@@ -224,6 +303,7 @@ const useAnalyze = () => {
     setResult(null);
     setEditResult(null);
     setAgentResult(null);
+    setCurrentPrescriptionId(null);
   }, []);
 
   return {
@@ -231,9 +311,11 @@ const useAnalyze = () => {
     result: editResult,
     rawResult: result,
     agentScheduling, agentResult, isRestoredSession,
-    startDate, setStartDate,
+    startDate, setStartDate: reshiftSchedule,
+    currentPrescriptionId,
     selectFile, removeFile, analyze, reset, scheduleAgent,
-    updateField, updateMedication, saveConfirmedSchedule,
+    updateField, updateMedication,
+    saveConfirmedSchedule, mergeSchedule, deleteSchedule,
   };
 };
 

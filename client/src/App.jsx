@@ -22,8 +22,10 @@ const MainApp = () => {
     file, loading, sessionLoading, error, result,
     agentScheduling, agentResult, isRestoredSession,
     startDate, setStartDate,
+    currentPrescriptionId,
     selectFile, removeFile, analyze, reset, scheduleAgent,
-    updateField, updateMedication, saveConfirmedSchedule,
+    updateField, updateMedication,
+    saveConfirmedSchedule, mergeSchedule, deleteSchedule,
   } = useAnalyze();
 
   return (
@@ -144,11 +146,16 @@ const MainApp = () => {
               <ScheduleView
                 agentResult={agentResult}
                 alreadyConfirmed={isRestoredSession}
+                startDate={startDate}
+                onStartDateChange={setStartDate}
                 onConfirm={() => {
-                  const prescriptionId = result?._id;
+                  const prescriptionId = currentPrescriptionId || result?._id;
                   if (prescriptionId) {
                     saveConfirmedSchedule(prescriptionId, agentResult);
                   }
+                }}
+                onDelete={async () => {
+                  await deleteSchedule();
                 }}
                 onBack={() => { }}
               />
