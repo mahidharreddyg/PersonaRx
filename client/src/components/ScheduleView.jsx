@@ -9,16 +9,16 @@ import {
 
 const SLOT_CONFIG = {
   breakfast: { emoji: '🌅', label: 'Breakfast', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', border: 'rgba(245,158,11,0.25)' },
-  lunch:     { emoji: '☀️', label: 'Lunch',     color: '#34d399', bg: 'rgba(52,211,153,0.1)', border: 'rgba(52,211,153,0.25)' },
-  dinner:    { emoji: '🌙', label: 'Dinner',    color: '#a78bfa', bg: 'rgba(167,139,250,0.1)', border: 'rgba(167,139,250,0.25)' },
+  lunch: { emoji: '☀️', label: 'Lunch', color: '#34d399', bg: 'rgba(52,211,153,0.1)', border: 'rgba(52,211,153,0.25)' },
+  dinner: { emoji: '🌙', label: 'Dinner', color: '#a78bfa', bg: 'rgba(167,139,250,0.1)', border: 'rgba(167,139,250,0.25)' },
 };
 
 const DRUG_COLORS = [
-  { color: '#ff3388', bg: 'rgba(255,51,136,0.12)',  border: 'rgba(255,51,136,0.3)',  glow: 'rgba(255,51,136,0.2)'  },
-  { color: '#60a5fa', bg: 'rgba(96,165,250,0.12)',  border: 'rgba(96,165,250,0.3)',  glow: 'rgba(96,165,250,0.2)'  },
-  { color: '#34d399', bg: 'rgba(52,211,153,0.12)',  border: 'rgba(52,211,153,0.3)',  glow: 'rgba(52,211,153,0.2)'  },
+  { color: '#ff3388', bg: 'rgba(255,51,136,0.12)', border: 'rgba(255,51,136,0.3)', glow: 'rgba(255,51,136,0.2)' },
+  { color: '#60a5fa', bg: 'rgba(96,165,250,0.12)', border: 'rgba(96,165,250,0.3)', glow: 'rgba(96,165,250,0.2)' },
+  { color: '#34d399', bg: 'rgba(52,211,153,0.12)', border: 'rgba(52,211,153,0.3)', glow: 'rgba(52,211,153,0.2)' },
   { color: '#c084fc', bg: 'rgba(192,132,252,0.12)', border: 'rgba(192,132,252,0.3)', glow: 'rgba(192,132,252,0.2)' },
-  { color: '#fb923c', bg: 'rgba(251,146,60,0.12)',  border: 'rgba(251,146,60,0.3)',  glow: 'rgba(251,146,60,0.2)'  },
+  { color: '#fb923c', bg: 'rgba(251,146,60,0.12)', border: 'rgba(251,146,60,0.3)', glow: 'rgba(251,146,60,0.2)' },
 ];
 
 const formatDate = (dateStr) => {
@@ -35,13 +35,13 @@ const ScheduleView = ({
   startDate,
   onStartDateChange,   // (newDateStr) => void — re-shifts schedule via hook
 }) => {
-  const [confirmed, setConfirmed]         = useState(alreadyConfirmed);
-  const [notifPerm, setNotifPerm]         = useState(Notification?.permission || 'default');
-  const [notifCount, setNotifCount]       = useState(0);
-  const [doseEvents, setDoseEvents]       = useState([]);
+  const [confirmed, setConfirmed] = useState(alreadyConfirmed);
+  const [notifPerm, setNotifPerm] = useState(Notification?.permission || 'default');
+  const [notifCount, setNotifCount] = useState(0);
+  const [doseEvents, setDoseEvents] = useState(agentResult?.dose_events || []);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   // In-app test notification status (replaces alert())
-  const [testStatus, setTestStatus]       = useState(null); // null | 'fired' | 'failed'
+  const [testStatus, setTestStatus] = useState(null); // null | 'fired' | 'failed'
 
   // Register SW on mount
   useEffect(() => {
@@ -51,6 +51,13 @@ const ScheduleView = ({
     });
     return unsubscribe;
   }, []);
+
+  // Sync dose events from backend hydration
+  useEffect(() => {
+    if (agentResult?.dose_events) {
+      setDoseEvents(agentResult.dose_events);
+    }
+  }, [agentResult?.dose_events]);
 
   // When alreadyConfirmed flips to true (e.g. after auto-load), sync state
   useEffect(() => {
@@ -88,18 +95,18 @@ const ScheduleView = ({
 
   // ── Counts ────────────────────────────────────────────────────
   const now = new Date();
-  const actedDoseIds   = new Set(doseEvents.map(e => e.dose_id).filter(Boolean));
-  const totalDoses     = total_doses ?? schedule.length;
-  const doneCount      = actedDoseIds.size;
+  const actedDoseIds = new Set(doseEvents.map(e => e.dose_id).filter(Boolean));
+  const totalDoses = total_doses ?? schedule.length;
+  const doneCount = actedDoseIds.size;
 
   // "Remaining" = not yet acted on (includes past doses not acted on)
-  const pendingCount   = schedule.filter(d => !actedDoseIds.has(d.dose_id)).length;
+  const pendingCount = schedule.filter(d => !actedDoseIds.has(d.dose_id)).length;
 
   // "Future" = not acted on AND scheduled time is still in the future
-  const futureCount    = schedule.filter(d => {
+  const futureCount = schedule.filter(d => {
     if (actedDoseIds.has(d.dose_id)) return false;
     const [yr, mo, dy] = d.date.split('-').map(Number);
-    const [hr, mn]     = d.scheduled_time.split(':').map(Number);
+    const [hr, mn] = d.scheduled_time.split(':').map(Number);
     return new Date(yr, mo - 1, dy, hr, mn) > now;
   }).length;
 
@@ -152,15 +159,15 @@ const ScheduleView = ({
       return;
     }
     const testDose = {
-      dose_id:        'test_dose_' + Date.now(),
-      drug_name:      schedule[0]?.drug_name || 'Test Medicine',
-      dosage:         schedule[0]?.dosage    || '1 tablet',
-      constraint:     schedule[0]?.constraint || 'after food',
-      slot:           'breakfast',
+      dose_id: 'test_dose_' + Date.now(),
+      drug_name: schedule[0]?.drug_name || 'Test Medicine',
+      dosage: schedule[0]?.dosage || '1 tablet',
+      constraint: schedule[0]?.constraint || 'after food',
+      slot: 'breakfast',
       scheduled_time: '08:00',
-      date:           new Date().toISOString().split('T')[0],
-      day:            1,
-      status:         'pending',
+      date: new Date().toISOString().split('T')[0],
+      day: 1,
+      status: 'pending',
     };
     const ok = await fireTestNotification(testDose);
     setTestStatus(ok ? 'fired' : 'failed');
@@ -279,6 +286,10 @@ const ScheduleView = ({
         <input
           type="date"
           value={currentStart}
+          min={(() => {
+            const d = new Date();
+            return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+          })()}
           onChange={handleStartDateChange}
           style={{
             background: 'rgba(255,255,255,0.05)',
@@ -335,12 +346,12 @@ const ScheduleView = ({
       {/* ── Daily Schedule Table ─────────────────────────────── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 36 }}>
         {dates.map((date, dayIdx) => {
-          const daySched    = byDate[date];
+          const daySched = byDate[date];
           const totalForDay = slots.reduce((acc, s) => acc + (daySched[s]?.length || 0), 0);
-          const dayDoses    = slots.flatMap(s => daySched[s] || []);
-          const doneForDay  = dayDoses.filter(d => actedDoseIds.has(d.dose_id)).length;
-          const allDone     = doneForDay > 0 && doneForDay === totalForDay;
-          const someDone    = doneForDay > 0 && doneForDay < totalForDay;
+          const dayDoses = slots.flatMap(s => daySched[s] || []);
+          const doneForDay = dayDoses.filter(d => actedDoseIds.has(d.dose_id)).length;
+          const allDone = doneForDay > 0 && doneForDay === totalForDay;
+          const someDone = doneForDay > 0 && doneForDay < totalForDay;
 
           return (
             <div key={date} style={{
@@ -387,8 +398,8 @@ const ScheduleView = ({
                   ...(allDone
                     ? { background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', color: '#34d399' }
                     : someDone
-                    ? { background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)', color: '#fbbf24' }
-                    : { background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', color: '#34d399' }
+                      ? { background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)', color: '#fbbf24' }
+                      : { background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', color: '#34d399' }
                   ),
                 }}>
                   {allDone ? '✅ All Done' : someDone ? `⏳ In Progress` : 'All Pending'}
@@ -398,7 +409,7 @@ const ScheduleView = ({
               {/* Time Slots */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 1, background: 'var(--border)' }}>
                 {slots.map(slot => {
-                  const cfg   = SLOT_CONFIG[slot];
+                  const cfg = SLOT_CONFIG[slot];
                   const doses = daySched[slot] || [];
                   if (doses.length === 0 && !meal_times?.[slot]) return null;
                   return (
@@ -417,10 +428,10 @@ const ScheduleView = ({
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                           {doses.map(dose => {
-                            const dc        = drugColorMap[dose.drug_name];
-                            const done      = actedDoseIds.has(dose.dose_id);
+                            const dc = drugColorMap[dose.drug_name];
+                            const done = actedDoseIds.has(dose.dose_id);
                             const doseEvent = doseEvents.find(e => e.dose_id === dose.dose_id);
-                            const isMissed  = doseEvent?.status === 'missed';
+                            const isMissed = doseEvent?.status === 'missed';
 
                             return (
                               <div key={dose.dose_id} style={{
@@ -520,7 +531,7 @@ const ScheduleView = ({
               onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 12px 32px rgba(255,51,136,0.45)'; }}
               onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(255,51,136,0.3)'; }}
             >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
               Confirm Schedule
             </button>
           </div>
@@ -534,7 +545,7 @@ const ScheduleView = ({
             background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)',
           }}>
             <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(16,185,129,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981', flexShrink: 0 }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 15, fontWeight: 800, color: '#10b981', marginBottom: 3 }}>Schedule Confirmed! 🎉</div>
@@ -560,8 +571,8 @@ const ScheduleView = ({
               {notifPerm === 'granted'
                 ? `🔔 ${futureCount} upcoming reminders`
                 : notifPerm === 'denied'
-                ? '🔕 Notifications blocked'
-                : '🔕 No notifications'
+                  ? '🔕 Notifications blocked'
+                  : '🔕 No notifications'
               }
             </div>
           </div>
@@ -618,7 +629,7 @@ const ScheduleView = ({
           {notifPerm === 'granted' && (
             <div style={{
               padding: '16px 20px', borderRadius: 14,
-              background: 'var(--bg-card)', 
+              background: 'var(--bg-card)',
               border: `1px solid ${testStatus === 'failed' ? 'rgba(239,68,68,0.3)' : 'var(--border)'}`,
               display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap',
               transition: 'all 0.4s ease',
@@ -663,7 +674,7 @@ const ScheduleView = ({
                     : 'Fires a real medication reminder (works on desktop & mobile).'}
                 </div>
               </div>
-              
+
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 {testStatus === 'fired' && (
                   <span style={{
@@ -681,8 +692,8 @@ const ScheduleView = ({
                     background: testStatus === 'fired'
                       ? 'rgba(16,185,129,0.1)'
                       : testStatus === 'failed'
-                      ? 'rgba(239,68,68,0.1)'
-                      : 'rgba(245,158,11,0.1)',
+                        ? 'rgba(239,68,68,0.1)'
+                        : 'rgba(245,158,11,0.1)',
                     border: `1px solid ${testStatus === 'fired' ? 'rgba(16,185,129,0.25)' : testStatus === 'failed' ? 'rgba(239,68,68,0.25)' : 'rgba(245,158,11,0.25)'}`,
                     color: testStatus === 'fired' ? '#10b981' : testStatus === 'failed' ? '#ef4444' : '#fbbf24',
                     padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 700,
@@ -715,7 +726,7 @@ const ScheduleView = ({
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 1, background: 'var(--border)', maxHeight: 280, overflowY: 'auto' }}>
                 {doseEvents.map((ev, i) => {
-                  const isTaken  = ev.status === 'taken';
+                  const isTaken = ev.status === 'taken';
                   const isMissed = ev.status === 'missed';
                   return (
                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', background: 'var(--bg)' }}>

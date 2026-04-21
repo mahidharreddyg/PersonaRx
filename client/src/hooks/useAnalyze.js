@@ -20,7 +20,13 @@ const shiftScheduleDates = (schedule, startDateStr) => {
     const offset = (dose.day ?? 1) - minDay; // 0-indexed
     const d = new Date(startDateStr + 'T00:00:00');
     d.setDate(d.getDate() + offset);
-    return { ...dose, date: d.toISOString().split('T')[0] };
+
+    // Format output as local YYYY-MM-DD instead of UTC toISOString() which shifts it back 1 day in positive TZs
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+
+    return { ...dose, date: `${yyyy}-${mm}-${dd}` };
   });
 };
 
@@ -39,9 +45,11 @@ const useAnalyze = () => {
   // Track the prescription id for save/delete operations
   const [currentPrescriptionId, setCurrentPrescriptionId] = useState(null);
 
-  // Start date for shifting the schedule — defaults to today
-  const todayStr = new Date().toISOString().split('T')[0];
-  const [startDate, setStartDate] = useState(todayStr);
+  // Start date for shifting the schedule — default to local today
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  });
 
   // Keep startDate in a ref so callbacks always see the latest value
   const startDateRef = useRef(startDate);
@@ -71,6 +79,7 @@ const useAnalyze = () => {
               session_id: data.session_id,
               schedule: data.saved_schedule,
               meal_times: data.meal_times || { breakfast: '08:00', lunch: '14:00', dinner: '20:00' },
+              dose_events: data.dose_events || [],
             });
             setIsRestoredSession(true); // skip confirm bar
 
@@ -178,13 +187,18 @@ const useAnalyze = () => {
     setAgentResult(null);
 
     try {
+      const payload = {
+        ...editResult,
+        start_date: startDateRef.current
+      };
+
       const response = await fetch('/api/schedule', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(editResult)
+        body: JSON.stringify(payload)
       });
       const data = await response.json();
 
@@ -214,12 +228,18 @@ const useAnalyze = () => {
       const currentDay1 = [...prev.schedule].map(d => d.date).sort()[0];
       if (!currentDay1) return prev;
       const baseMsec = new Date(currentDay1 + 'T00:00:00').getTime();
-      const newMsec  = new Date(newStartDate  + 'T00:00:00').getTime();
+      const newMsec = new Date(newStartDate + 'T00:00:00').getTime();
       const diffDays = Math.round((newMsec - baseMsec) / 86_400_000);
       const shifted = prev.schedule.map(dose => {
         const d = new Date(dose.date + 'T00:00:00');
         d.setDate(d.getDate() + diffDays);
-        return { ...dose, date: d.toISOString().split('T')[0] };
+
+        // Format output as local YYYY-MM-DD instead of UTC
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+
+        return { ...dose, date: `${yyyy}-${mm}-${dd}` };
       });
       return { ...prev, schedule: shifted };
     });
