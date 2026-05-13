@@ -1,70 +1,81 @@
-# AI Prescription Analyzer 🏥💊
+# PersonaRx
+### A Multi-Agent Framework for Adaptive Prescription Planning Using Persona-Driven Behavioral Simulation
 
-A full-stack web application that extracts structured medical information from prescription images using a Multi-Agent AI pipeline.
+Most medication reminder apps are just fixed alarms. **PersonaRx** watches how you behave with your schedule, figures out what kind of patient you are, and automatically adjusts your future dose times to fit your life.
 
-## Architecture
+---
 
-```
-Frontend (React + Tailwind) → Express Backend → Google Colab AI Pipeline (via ngrok)
-```
+## 🚀 Features
 
-## Quick Start
+* 📄 Upload a printed prescription and have it parsed automatically
+* ✏️ Review and correct extracted fields before confirming
+* 🔔 Browser push notifications with Taken / Missed action buttons
+* 🤖 Simulate realistic patient behaviour across three behavioural personas
+* 🧠 AI Planning Agent infers your persona and replans your schedule in real time
+* 🔒 Hard pharmacological safety constraint -> no two doses ever less than four hours apart
+* 👤 JWT-authenticated accounts with session-isolated data
 
-### 1. Install dependencies
+---
 
-```bash
-# Install client dependencies
-cd client && npm install
+## 🏗️ System Pipeline
 
-# Install server dependencies
-cd ../server && npm install
-```
+1. Upload prescription image
+2. OCR extracts drug name, dosage, frequency, duration and food constraint
+3. User reviews and confirms extracted data
+4. Scheduling Agent generates a meal-anchored dose timeline
+5. Simulation Agent models patient behaviour across chosen persona
+6. Planning Agent infers persona from event history and replans future doses
+7. Updated schedule is pushed to the UI and notifications are rescheduled
 
-### 2. Configure the Colab API URL
+---
 
-Copy `.env.example` to `.env` and set your ngrok URL:
+## 🤖 The Four Agents
 
-```bash
-cp .env.example .env
-# Edit .env and set COLAB_API_URL
-```
+* **Extraction Agent** — Runs Tesseract OCR and regex on the prescription image to produce structured medication JSON
+* **Scheduling Agent** (`scheduler.py`) — Converts frequency patterns like `1-0-1` into a concrete dated dose timeline anchored to meal times
+* **Simulation Agent** (`simulator.py`) — Generates realistic synthetic adherence data using probability distributions tuned to three behavioural personas
+* **Planning Agent** (`planner.py`) — Infers which persona best fits the user's behaviour and replans future doses while enforcing the minimum gap safety constraint
 
-### 3. Run the development servers
+---
 
-```bash
-# From the root directory — runs both client & server
-npm run dev
-```
+## 🧪 Technologies Used
 
-- **Frontend**: http://localhost:5173
-- **Backend**: http://localhost:3001
+* React 19 + Vite + Tailwind CSS v4
+* Web Push API + Service Worker (PWA)
+* Node.js + Express.js + JWT + Mongoose
+* Python + Flask + Tesseract OCR + OpenCV
+* MongoDB Atlas
+* Google Colab + ngrok
 
-## Project Structure
+---
+
+## 📂 Project Structure
 
 ```
 prescript_ai/
-├── client/                 # React frontend (Vite + Tailwind)
-│   └── src/
-│       ├── components/     # Reusable UI components
-│       ├── hooks/          # Custom React hooks
-│       ├── App.jsx         # Main application
-│       └── index.css       # Design system & animations
-├── server/                 # Express backend
-│   ├── routes/             # API routes
-│   ├── middleware/         # Upload handling
-│   └── index.js            # Server entry point
-├── .env                    # Environment variables (not in git)
-└── .env.example            # Template for env vars
+├── client/          # React PWA frontend
+├── server/          # Node.js Express backend + auth + DB models
+└── agents/          # Python AI layer (Google Colab)
+    ├── server.py    # Flask API bridge
+    ├── scheduler.py # Scheduling Agent
+    ├── simulator.py # Simulation Agent
+    ├── planner.py   # Planning + Persona Inference Agent
+    └── db.py        # MongoDB Atlas 
 ```
 
-## Tech Stack
+---
 
-| Layer | Technology |
-|-------|-----------|
-| Frontend | React 19, Vite, Tailwind CSS v4 |
-| Backend | Node.js, Express |
-| AI Pipeline | Google Colab (via ngrok) |
+## ⚠️ Notes
 
-## License
+* The AI layer runs on Google Colab with an ngrok tunnel. Update `COLAB_API_URL` in your `.env` each time you restart the notebook
+* MongoDB credentials, JWT secret and ngrok token are not included. Configure your own `.env`
+* Only digitally printed prescriptions are supported. Handwritten prescriptions are out of scope
+* All evaluation used synthetic data from the Simulation Agent. They are not validated with real patients
+* Designed for academic and research use only. Not intended for clinical deployment
 
-For educational and research purposes only.
+---
+
+## 👤 Authors 
+
+* Mahidhar Reddy G
+* A S Pradnya
